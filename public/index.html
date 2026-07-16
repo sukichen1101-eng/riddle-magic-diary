@@ -8,8 +8,16 @@
 <title>Riddle · 手写日记</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sacramento&family=Dancing+Script:wght@500;600&family=Tangerine:wght@400;700&family=Great+Vibes&family=Cormorant+Garamond:ital,wght@1,500&family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&family=Long+Cang&family=Liu+Jian+Mao+Cao&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sacramento&family=Dancing+Script:wght@500;600&family=Tangerine:wght@400;700&family=Great+Vibes&family=Cormorant+Garamond:ital,wght@1,500&display=swap" rel="stylesheet">
+<link rel="preload" href="/fonts/MaShanZheng-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  @font-face {
+    font-family: "Riddle Ma Shan Zheng";
+    src: url("/fonts/MaShanZheng-Regular.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 500;
+    font-display: block;
+  }
   :root {
     --paper: #d8c69f;
     --paper2: #c9b486;
@@ -157,11 +165,11 @@
   // L = 拉丁花体, C = 中文毛笔手写体(均来自 Google Fonts,按字下载)
   // 含中文时把 C 放最前面当主字体,canvas 才会用它渲染中文(否则会跳系统黑体)
   const FONTS = {
-    elegant:     { L: '"Sacramento"',          C: '"Ma Shan Zheng"',    kL: 1.18, kC: 1.0 },
-    calligraphy: { L: '"Tangerine"',           C: '"Liu Jian Mao Cao"', kL: 1.7,  kC: 1.06 },
-    vintage:     { L: '"Great Vibes"',         C: '"Long Cang"',        kL: 1.28, kC: 1.02 },
-    diary:       { L: '"Dancing Script"',      C: '"Zhi Mang Xing"',    kL: 1.0,  kC: 1.02 },
-    quill:       { L: '"Cormorant Garamond"',  C: '"Ma Shan Zheng"',    kL: 1.15, kC: 1.0, italic: true }
+    elegant:     { L: '"Sacramento"',          C: '"Riddle Ma Shan Zheng"', kL: 1.18, kC: 1.0 },
+    calligraphy: { L: '"Tangerine"',           C: '"Riddle Ma Shan Zheng"', kL: 1.7,  kC: 1.0 },
+    vintage:     { L: '"Great Vibes"',         C: '"Riddle Ma Shan Zheng"', kL: 1.28, kC: 1.0 },
+    diary:       { L: '"Dancing Script"',      C: '"Riddle Ma Shan Zheng"', kL: 1.0,  kC: 1.0 },
+    quill:       { L: '"Cormorant Garamond"',  C: '"Riddle Ma Shan Zheng"', kL: 1.15, kC: 1.0, italic: true }
   };
   function fontOf() { return FONTS[cfg.font] || FONTS.elegant; }
   const LS = "riddle.cfg.v1";

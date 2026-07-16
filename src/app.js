@@ -3,7 +3,7 @@ import path from "node:path";
 import { hashCode, signSession, verifySession, randomDeviceId, parseCookies, cookie } from "./auth.js";
 
 const JSON_LIMIT = 8 * 1024 * 1024;
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml" };
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
 
 const sendJson = (res, status, body, headers = {}) => {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers });

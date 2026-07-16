@@ -17,6 +17,7 @@ function parseSetCookies(headers) {
 async function fixture(overrides = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "riddle-test-"));
   fs.writeFileSync(path.join(dir, "index.html"), "ok");
+  fs.writeFileSync(path.join(dir, "font.woff2"), "font");
   const store = new CodeStore(path.join(dir, "codes.json"));
   const codes = ["VALID-ABCDE", "EXPIRE-ABCD"];
   store.addCodes(codes.map((code) => ({ hash: hashCode(code, secret), createdAt: Date.now(), channel: "test" })));
@@ -64,6 +65,13 @@ test("expired code is denied", async (t) => {
   const response = await fetch(`${f.base}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json", cookie: "riddle_device=old-device" }, body: JSON.stringify({ code: "EXPIRE-ABCD" }) });
   assert.equal(response.status, 401);
   assert.equal((await response.json()).reason, "EXPIRED_CODE");
+});
+
+test("self-hosted font assets use a Safari-compatible MIME type", async (t) => {
+  const f = await fixture(); t.after(() => f.server.close());
+  const response = await fetch(`${f.base}/font.woff2`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "font/woff2");
 });
 
 test("self-host mode works without an access code while keeping the API key server-side", async (t) => {
