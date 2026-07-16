@@ -43,6 +43,7 @@ test("login, remembered session and Kimi proxy keep secret server-side", async (
   assert.match(await chat.text(), /Hello/);
   assert.equal(f.upstreamCalls.length, 1);
   assert.equal(JSON.stringify(f.upstreamCalls[0]).includes("server-only-key"), false);
+  assert.deepEqual(f.upstreamCalls[0].thinking, { type: "disabled" });
 });
 
 test("invalid code denied and third device rejected", async (t) => {

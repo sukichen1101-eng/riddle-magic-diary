@@ -73,6 +73,7 @@ export function createApp(config, store, fetchImpl = fetch) {
           body: JSON.stringify({
             model: config.kimiModel,
             stream: true,
+            thinking: { type: "disabled" },
             max_tokens: 300,
             messages: [
               { role: "system", content: config.systemPrompt + "\nDetect the handwriting language and reply only in that same language." },
