@@ -532,6 +532,7 @@
       if (!block.inList && !block.fontLoading) { // 空回应兜底
         block.text = "……"; const lay = layoutResponse(block.text);
         Object.assign(block, lay); aiBlocks.push(block); block.inList = true; block.born = performance.now();
+        state = STATE.RESPONDING; hideFlash();
       }
     } catch (err) {
       hideFlash();

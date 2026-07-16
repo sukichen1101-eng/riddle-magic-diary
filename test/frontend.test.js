@@ -12,3 +12,12 @@ test("hosted frontend uses server auth and never asks consumers for API credenti
   assert.doesNotMatch(html, /if \(!cfg\.key\)/);
   assert.doesNotMatch(html, /API Key/i);
 });
+
+test("an empty upstream response leaves processing state instead of freezing input", () => {
+  const fallbackStart = html.indexOf("if (!block.inList && !block.fontLoading)");
+  const catchStart = html.indexOf("} catch (err)", fallbackStart);
+  assert.ok(fallbackStart > 0 && catchStart > fallbackStart);
+  const fallback = html.slice(fallbackStart, catchStart);
+  assert.match(fallback, /state = STATE\.RESPONDING;/);
+  assert.match(fallback, /hideFlash\(\)/);
+});
