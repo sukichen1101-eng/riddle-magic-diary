@@ -137,60 +137,8 @@
   </div>
   <canvas id="c"></canvas>
   <canvas id="live"></canvas>
-
-  <div id="gear" class="fab" title="设置">⚙</div>
   <div id="clear" class="fab" title="清页">✦</div>
   <div id="status"></div>
-
-  <div id="panel">
-    <div class="card">
-      <h2>Riddle</h2>
-      <p class="sub">一本会回话的手写日记 · 设置你的 Oracle(AI 接口)</p>
-
-      <label>API 地址（OpenAI 兼容）</label>
-      <input id="f-url" placeholder="https://api.openai.com/v1/chat/completions" />
-      <div class="hint">OpenAI、OpenRouter、Groq、本地服务皆可。OpenRouter 用 <code>https://openrouter.ai/api/v1/chat/completions</code>（可借它调 Claude / Gemini 等视觉模型）。</div>
-
-      <label>API Key</label>
-      <input id="f-key" type="password" placeholder="sk-..." autocomplete="off" />
-      <div class="hint">只存在你 iPad 本机的浏览器里（localStorage），不会上传到别处。</div>
-
-      <div class="row">
-        <div>
-          <label>视觉模型</label>
-          <input id="f-model" placeholder="gpt-4o" />
-        </div>
-        <div>
-          <label>停笔触发（秒）</label>
-          <input id="f-idle" type="number" step="0.1" min="0.5" placeholder="2.8" />
-        </div>
-      </div>
-      <div class="hint">模型必须支持读图。例如 <code>gpt-4o</code>、<code>anthropic/claude-sonnet-5</code>(经 OpenRouter)、<code>google/gemini-2.5-flash</code> 等。</div>
-
-      <label>手写字体</label>
-      <select id="f-font">
-        <option value="elegant">纤细连笔 / 毛笔楷书（最接近原版）</option>
-        <option value="calligraphy">古典书法 / 狂草（最神秘）</option>
-        <option value="vintage">复古花体 / 龙藏行楷</option>
-        <option value="diary">日记体 / 手写体</option>
-        <option value="quill">羽毛笔斜体 / 毛笔楷书</option>
-      </select>
-      <div class="hint">中英文各自选一款:英文用左边的花体,中文自动用右边的毛笔手写体。</div>
-
-      <label>日记的性格（system 提示）</label>
-      <input id="f-sys" placeholder="安静、温柔、简短地回应……" />
-
-      <div class="togrow">
-        <input type="checkbox" id="f-penonly" />
-        <label for="f-penonly" style="margin:0">仅接受 Apple Pencil（忽略手指，防误触）</label>
-      </div>
-
-      <div class="btns">
-        <button class="act" id="save">保存</button>
-        <button class="act ghost" id="close">取消</button>
-      </div>
-    </div>
-  </div>
 
 <script>
 "use strict";
@@ -563,7 +511,6 @@
     }
   }
   async function commit() {
-    if (!cfg.key) { flash("先点右上角 ⚙ 填入 API Key"); openPanel(); return; }
     state = STATE.PROCESSING;
     responseRevealAfter = performance.now() + USER_FADE_MS + 180;
     strokes.forEach(s => { if (!s.committed) { s.committed = true; s.fadeStart = performance.now(); } });
@@ -635,40 +582,11 @@
   function flash(msg) { statusEl.textContent = msg; statusEl.classList.add("show"); }
   function hideFlash() { statusEl.classList.remove("show"); }
 
-  const panel = document.getElementById("panel");
-  const F = {
-    url: document.getElementById("f-url"), key: document.getElementById("f-key"),
-    model: document.getElementById("f-model"), idle: document.getElementById("f-idle"),
-    sys: document.getElementById("f-sys"), penonly: document.getElementById("f-penonly"),
-    font: document.getElementById("f-font")
-  };
-  function openPanel() {
-    F.url.value = cfg.url; F.key.value = cfg.key; F.model.value = cfg.model;
-    F.idle.value = cfg.idle; F.sys.value = cfg.sys; F.penonly.checked = !!cfg.penonly;
-    F.font.value = cfg.font || "elegant";
-    panel.classList.add("show");
-  }
-  function closePanel() { panel.classList.remove("show"); }
-  document.getElementById("gear").addEventListener("click", openPanel);
-  document.getElementById("close").addEventListener("click", closePanel);
-  document.getElementById("save").addEventListener("click", () => {
-    cfg = {
-      url: F.url.value.trim() || DEFAULTS.url,
-      key: F.key.value.trim(),
-      model: F.model.value.trim() || DEFAULTS.model,
-      idle: Math.max(0.5, parseFloat(F.idle.value) || DEFAULTS.idle),
-      sys: F.sys.value.trim() || DEFAULTS.sys,
-      penonly: F.penonly.checked,
-      font: F.font.value || "elegant"
-    };
-    saveCfg(cfg); closePanel(); flash("已保存，开始书写吧"); setTimeout(hideFlash, 1600);
-  });
   document.getElementById("clear").addEventListener("click", () => {
     strokes = []; aiBlocks = []; active = null; state = STATE.WRITING;
     baseDirty = true; lctx.clearRect(0, 0, W, H);
   });
 
-  document.getElementById("gear").style.display = "none";
   const gate = document.getElementById("gate");
   const gateForm = document.getElementById("gate-form");
   const gateError = document.getElementById("gate-error");

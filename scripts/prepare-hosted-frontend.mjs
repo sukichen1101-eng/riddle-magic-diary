@@ -26,6 +26,14 @@ const gate = `
   </div>`;
 html = html.replace('<div id="paper"></div>', `<div id="paper"></div>${gate}`);
 
+// Hosted users authenticate with an access code; API credentials stay server-side.
+html = html.replace(/^\s*<div id="gear"[^\n]*\n/m, "");
+const panelStart = html.indexOf('  <div id="panel">');
+const scriptStart = html.indexOf("<script>", panelStart);
+if (panelStart < 0 || scriptStart < 0) throw new Error("Could not locate settings panel");
+html = html.slice(0, panelStart) + html.slice(scriptStart);
+html = html.replace(/^\s*if \(!cfg\.key\)[^\n]*\n/m, "");
+
 html = html.replace('url: "https://api.openai.com/v1/chat/completions",', 'url: "/api/chat",')
   .replace('key: "",', 'key: "hosted",')
   .replace('model: "gpt-4o",', 'model: "hosted",');
@@ -72,11 +80,15 @@ const streamReplacement = `  async function streamChat(dataUrl, onDelta) {
 `;
 html = html.slice(0, streamStart) + streamReplacement + html.slice(uiStart);
 
+const settingsStart = html.indexOf('  const panel = document.getElementById("panel");');
+const clearStart = html.indexOf('  document.getElementById("clear").addEventListener', settingsStart);
+if (settingsStart < 0 || clearStart < 0) throw new Error("Could not locate settings handlers");
+html = html.slice(0, settingsStart) + html.slice(clearStart);
+
 const startup = html.lastIndexOf("  // ");
 const closure = html.indexOf("})();", startup);
 if (startup < 0 || closure < 0) throw new Error("Could not locate startup block");
-const authStartup = `  document.getElementById("gear").style.display = "none";
-  const gate = document.getElementById("gate");
+const authStartup = `  const gate = document.getElementById("gate");
   const gateForm = document.getElementById("gate-form");
   const gateError = document.getElementById("gate-error");
   const gateSubmit = document.getElementById("gate-submit");

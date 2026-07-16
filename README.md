@@ -2,6 +2,8 @@
 
 Public hosted version of the handwritten AI diary. The browser never receives the Kimi API key.
 
+The source code is free to self-host under the MIT License. The access-code flow is for operators who want to offer a ready-to-use hosted experience without asking visitors to configure an API key.
+
 ## Local run
 
 1. Copy `.env.example` to `.env` and fill `SESSION_SECRET` and `KIMI_API_KEY`.
