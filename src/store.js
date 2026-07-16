@@ -71,7 +71,7 @@ export class CodeStore {
     if (used >= codeCap || daily.global >= globalCap) return { ok: false, reason: "SAFETY_CAP" };
     daily.codes[codeHash] = used + 1;
     daily.global += 1;
-    db.codes[codeHash].totalRequests = (db.codes[codeHash].totalRequests || 0) + 1;
+    if (db.codes[codeHash]) db.codes[codeHash].totalRequests = (db.codes[codeHash].totalRequests || 0) + 1;
     this.#write(db);
     return { ok: true };
   }

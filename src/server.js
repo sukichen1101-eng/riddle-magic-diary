@@ -6,14 +6,16 @@ import { CodeStore } from "./store.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const env = process.env;
-const required = ["SESSION_SECRET", "KIMI_API_KEY"];
-for (const key of required) if (!env[key]) throw new Error(`Missing required environment variable: ${key}`);
-if (env.SESSION_SECRET.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters");
+const authRequired = (env.AUTH_REQUIRED || "true").toLowerCase() !== "false";
+if (!env.KIMI_API_KEY) throw new Error("Missing required environment variable: KIMI_API_KEY");
+if (authRequired && !env.SESSION_SECRET) throw new Error("Missing required environment variable: SESSION_SECRET");
+if (authRequired && env.SESSION_SECRET.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters");
 
 const config = {
   publicDir: path.join(root, "public"),
   publicOrigin: env.PUBLIC_ORIGIN || "http://localhost:3000",
-  sessionSecret: env.SESSION_SECRET,
+  authRequired,
+  sessionSecret: env.SESSION_SECRET || "self-host-mode-does-not-use-sessions",
   kimiApiKey: env.KIMI_API_KEY,
   kimiApiUrl: env.KIMI_API_URL || "https://api.moonshot.cn/v1/chat/completions",
   kimiModel: env.KIMI_MODEL || "kimi-k2.5",

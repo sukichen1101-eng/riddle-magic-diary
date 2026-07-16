@@ -2,24 +2,29 @@
 
 Public hosted version of the handwritten AI diary. The browser never receives the Kimi API key.
 
-The source code is free to self-host under the MIT License. The access-code flow is for operators who want to offer a ready-to-use hosted experience without asking visitors to configure an API key.
+The source code is free to self-host under the MIT License. One codebase supports two modes:
+
+- `AUTH_REQUIRED=false`: direct self-host mode. Visitors open the diary immediately.
+- `AUTH_REQUIRED=true`: hosted operator mode. Visitors must enter an access code.
+
+In both modes, the API key is configured on the server and is never sent to the browser.
 
 ## Local run
 
-1. Copy `.env.example` to `.env` and fill `SESSION_SECRET` and `KIMI_API_KEY`.
+1. Copy `.env.example` to `.env`, set `AUTH_REQUIRED=false`, and fill `KIMI_API_KEY`.
 2. Load the environment variables in your shell.
-3. Generate launch codes: `npm run codes -- 100 launch`.
-4. Start: `npm start`.
-5. Open `http://localhost:3000`.
+3. Start: `npm start`.
+4. Open `http://localhost:3000`.
 
 Node itself does not load `.env`; the deployment platform should inject these variables. For local PowerShell:
 
 ```powershell
-$env:SESSION_SECRET = "a-random-secret-at-least-32-characters"
 $env:KIMI_API_KEY = "sk-..."
-npm run codes -- 100 launch
+$env:AUTH_REQUIRED = "false"
 npm start
 ```
+
+For a hosted access-code service, set `AUTH_REQUIRED=true`, add a random `SESSION_SECRET` of at least 32 characters, then run `npm run codes -- 100 launch` before starting the service.
 
 The generated CSV contains plaintext buyer codes and must stay private. `data/codes.json` stores only keyed hashes, activation state and device IDs.
 
@@ -32,6 +37,7 @@ Use a single Node instance with a persistent disk mounted for `data/codes.json` 
 - Health URL: `/`
 - Persistent file: `/app/data/codes.json` or set `CODES_FILE` to the mounted path
 - HTTPS public URL in `PUBLIC_ORIGIN`
+- `AUTH_REQUIRED=true` for the commercial access-code mode
 - Environment variables from `.env.example`
 - One instance only; the JSON store is intentionally minimal and not multi-instance safe
 

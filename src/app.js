@@ -25,6 +25,7 @@ async function readJson(req) {
 export function createApp(config, store, fetchImpl = fetch) {
   const secure = config.publicOrigin.startsWith("https://");
   const publicDir = path.resolve(config.publicDir);
+  const authRequired = config.authRequired !== false;
 
   function getAuth(req) {
     const cookies = parseCookies(req.headers.cookie);
@@ -38,6 +39,7 @@ export function createApp(config, store, fetchImpl = fetch) {
     try {
       const url = new URL(req.url, "http://local");
       if (req.method === "POST" && url.pathname === "/api/auth/login") {
+        if (!authRequired) return sendJson(res, 200, { ok: true, authRequired: false });
         const { code } = await readJson(req);
         if (typeof code !== "string" || code.trim().length < 4) return sendJson(res, 400, { error: "请输入有效体验码" });
         const cookies = parseCookies(req.headers.cookie);
@@ -52,12 +54,13 @@ export function createApp(config, store, fetchImpl = fetch) {
       }
 
       if (req.method === "GET" && url.pathname === "/api/auth/session") {
+        if (!authRequired) return sendJson(res, 200, { authenticated: true, authRequired: false });
         const auth = getAuth(req);
-        return auth ? sendJson(res, 200, { authenticated: true, expiresAt: auth.expiresAt }) : sendJson(res, 401, { authenticated: false });
+        return auth ? sendJson(res, 200, { authenticated: true, authRequired: true, expiresAt: auth.expiresAt }) : sendJson(res, 401, { authenticated: false, authRequired: true });
       }
 
       if (req.method === "POST" && url.pathname === "/api/chat") {
-        const auth = getAuth(req);
+        const auth = authRequired ? getAuth(req) : { codeHash: "self-hosted" };
         if (!auth) return sendJson(res, 401, { error: "登录已失效，请重新输入体验码" });
         const body = await readJson(req);
         if (typeof body.image !== "string" || !body.image.startsWith("data:image/png;base64,")) return sendJson(res, 400, { error: "缺少手写图片" });

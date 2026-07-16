@@ -14,7 +14,7 @@ function parseSetCookies(headers) {
   return headers.getSetCookie().map((value) => value.split(";", 1)[0]).join("; ");
 }
 
-async function fixture() {
+async function fixture(overrides = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "riddle-test-"));
   fs.writeFileSync(path.join(dir, "index.html"), "ok");
   const store = new CodeStore(path.join(dir, "codes.json"));
@@ -25,7 +25,7 @@ async function fixture() {
     upstreamCalls.push(JSON.parse(options.body));
     return new Response('data: {"choices":[{"delta":{"content":"Hello"}}]}\n\ndata: [DONE]\n\n', { status: 200, headers: { "content-type": "text/event-stream" } });
   };
-  const config = { publicDir: dir, publicOrigin: "http://localhost", sessionSecret: secret, kimiApiKey: "server-only-key", kimiApiUrl: "https://example.invalid/chat", kimiModel: "vision-model", sessionDays: 30, maxDevices: 2, codeDailyCap: 500, globalDailyCap: 5000, systemPrompt: "prompt" };
+  const config = { publicDir: dir, publicOrigin: "http://localhost", sessionSecret: secret, kimiApiKey: "server-only-key", kimiApiUrl: "https://example.invalid/chat", kimiModel: "vision-model", sessionDays: 30, maxDevices: 2, codeDailyCap: 500, globalDailyCap: 5000, systemPrompt: "prompt", ...overrides };
   const server = http.createServer(createApp(config, store, fetchImpl));
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   return { base: `http://127.0.0.1:${server.address().port}`, server, store, upstreamCalls };
@@ -63,4 +63,15 @@ test("expired code is denied", async (t) => {
   const response = await fetch(`${f.base}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json", cookie: "riddle_device=old-device" }, body: JSON.stringify({ code: "EXPIRE-ABCD" }) });
   assert.equal(response.status, 401);
   assert.equal((await response.json()).reason, "EXPIRED_CODE");
+});
+
+test("self-host mode works without an access code while keeping the API key server-side", async (t) => {
+  const f = await fixture({ authRequired: false }); t.after(() => f.server.close());
+  const session = await fetch(`${f.base}/api/auth/session`);
+  assert.equal(session.status, 200);
+  assert.deepEqual(await session.json(), { authenticated: true, authRequired: false });
+  const chat = await fetch(`${f.base}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image: "data:image/png;base64,AAAA" }) });
+  assert.equal(chat.status, 200);
+  assert.match(await chat.text(), /Hello/);
+  assert.equal(JSON.stringify(f.upstreamCalls[0]).includes("server-only-key"), false);
 });
