@@ -1,0 +1,5 @@
+.env
+data/codes.json
+data/*.tmp
+node_modules/
+npm-debug.log*

@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Riddle · 手写日记</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sacramento&family=Dancing+Script:wght@500;600&family=Tangerine:wght@400;700&family=Great+Vibes&family=Cormorant+Garamond:ital,wght@1,500&family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&family=Long+Cang&family=Liu+Jian+Mao+Cao&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #d8c69f;
+    --paper2: #c9b486;
+    --ink: #2d241b;         /* 用户墨色 */
+    --ai-ink: #332619;      /* 日记回话的墨色:温润的近黑 */
+    --hand: "Dancing Script", "Snell Roundhand", "Apple Chancery", cursive;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--paper);
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none;
+  }
+  #paper {
+    position: fixed; inset: 0;
+    background-color: var(--paper);
+    background-image:
+      radial-gradient(ellipse at 13% 18%, rgba(119, 76, 34, .10) 0 2%, transparent 14%),
+      radial-gradient(ellipse at 84% 77%, rgba(95, 58, 25, .09) 0 3%, transparent 18%),
+      radial-gradient(circle at 72% 14%, rgba(255, 246, 210, .28) 0 4%, transparent 24%),
+      radial-gradient(circle at 31% 69%, rgba(91, 52, 20, .045) 0 1%, transparent 12%),
+      linear-gradient(112deg, rgba(255,255,255,.13), transparent 24%, rgba(99,64,29,.04) 67%, transparent),
+      radial-gradient(135% 105% at 50% 43%, #e2d3ad 0%, var(--paper) 58%, var(--paper2) 100%);
+    box-shadow:
+      inset 0 0 34px rgba(72, 43, 18, .18),
+      inset 0 0 110px rgba(66, 39, 16, .16);
+  }
+  /* 轻微纸纤维：无格线，作为静态层缓存，不参与书写重绘。 */
+  #paper::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    opacity: .16;
+    background-image:
+      repeating-linear-gradient(3deg, rgba(75,48,22,.12) 0, rgba(75,48,22,.12) .45px, transparent .8px, transparent 5px),
+      repeating-linear-gradient(94deg, rgba(255,248,220,.18) 0, rgba(255,248,220,.18) .5px, transparent .9px, transparent 8px);
+  }
+  /* 旧书页边缘与不规则岁月斑驳。 */
+  #paper::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at 5% 32%, rgba(73,42,17,.13) 0 1px, transparent 7px),
+      radial-gradient(circle at 95% 61%, rgba(73,42,17,.11) 0 2px, transparent 11px),
+      radial-gradient(circle at 38% 4%, rgba(73,42,17,.08) 0 1px, transparent 9px),
+      radial-gradient(125% 112% at 50% 44%, transparent 56%, rgba(65,38,15,.18) 100%);
+  }
+  canvas {
+    position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; display:block;
+    transform: translateZ(0);          /* 提成独立 GPU 图层,书写不连累纸面重绘 */
+    -webkit-transform: translateZ(0);
+  }
+  #live { z-index: 6; }
+  #c { z-index: 5; }
+
+  /* 顶部极简控件 */
+  .fab {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); z-index: 20;
+    width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(224,207,169,.62);
+    border: 1px solid rgba(60,50,70,.12);
+    display:flex; align-items:center; justify-content:center;
+    font-size: 20px; color: #5a4027; cursor: pointer;
+    transition: opacity .5s; opacity: .24;
+  }
+  .fab:active { opacity: 1; }
+  #gear { right: max(12px, env(safe-area-inset-right)); }
+  #clear { left: max(12px, env(safe-area-inset-left)); }
+
+  #status {
+    position: fixed; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom));
+    text-align: center; font: 400 15px/1.4 var(--hand); color: #6a5f74;
+    letter-spacing: .3px; opacity: 0; transition: opacity .6s; pointer-events:none; z-index: 15;
+  }
+  #status.show { opacity: .8; }
+
+  /* 设置面板 */
+  #panel {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    background: rgba(30,26,36,.35); backdrop-filter: blur(3px);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  #panel.show { display: flex; }
+  .card {
+    width: 100%; max-width: 440px; background: #fbf8f1; border-radius: 18px;
+    padding: 22px 22px 18px; box-shadow: 0 20px 60px rgba(20,16,26,.4);
+    font-family: -apple-system, system-ui, sans-serif; color: #2c2734;
+  }
+  .card h2 { margin: 0 0 4px; font: 600 22px var(--hand); }
+  .card p.sub { margin: 0 0 16px; font-size: 13px; color: #7a7286; }
+  label { display:block; font-size: 12px; font-weight: 600; color: #6a627a; margin: 12px 0 5px; }
+  input, select {
+    width: 100%; padding: 11px 12px; border: 1px solid #ddd6cb; border-radius: 10px;
+    font-size: 15px; background: #fff; color: #2c2734; -webkit-appearance: none;
+  }
+  .row { display:flex; gap: 10px; }
+  .row > div { flex: 1; }
+  .hint { font-size: 11px; color: #9a92a4; margin-top: 4px; line-height: 1.4; }
+  .btns { display:flex; gap: 10px; margin-top: 20px; }
+  button.act {
+    flex:1; padding: 12px; border: 0; border-radius: 11px; font-size: 15px; font-weight: 600;
+    background: #3a2f4a; color: #f4efe4; cursor: pointer;
+  }
+  button.ghost { background: #ece6da; color: #5a4027; }
+  .togrow { display:flex; align-items:center; gap:8px; margin-top:14px; font-size:13px; color:#6a627a;}
+  .togrow input { width:auto; }
+
+  #gate { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(45,32,20,.46); backdrop-filter:blur(7px); }
+  #gate[hidden] { display:none; }
+  .gate-card { width:min(390px,100%); padding:30px 25px 24px; border-radius:8px; color:#342519; text-align:center; font-family:-apple-system,system-ui,sans-serif; background:linear-gradient(145deg,#e8d8b4,#cdb789); border:1px solid rgba(76,46,20,.3); box-shadow:0 28px 90px rgba(22,13,7,.55),inset 0 0 45px rgba(93,58,23,.12); }
+  .gate-card h1 { margin:0 0 7px; font:700 42px/1 "Tangerine",cursive; }
+  .gate-card p { margin:0 0 20px; color:#69513b; font-size:14px; }
+  #access-code { text-align:center; letter-spacing:3px; text-transform:uppercase; background:rgba(255,250,236,.7); }
+  #gate-error { min-height:20px; margin:8px 0 0; color:#873d31; font-size:13px; }
+  #gate-submit { width:100%; margin-top:7px; padding:12px; border:0; border-radius:8px; color:#f4ead5; background:#493421; font-weight:600; }
+</style>
+</head>
+<body>
+  <div id="paper"></div>
+  <div id="gate">
+    <form class="gate-card" id="gate-form">
+      <h1>Riddle</h1><p>输入魔法日记体验码</p>
+      <input id="access-code" autocomplete="one-time-code" maxlength="24" placeholder="XXXXX-XXXXX" required />
+      <div id="gate-error" aria-live="polite"></div>
+      <button id="gate-submit" type="submit">开启日记</button>
+    </form>
+  </div>
+  <canvas id="c"></canvas>
+  <canvas id="live"></canvas>
+
+  <div id="gear" class="fab" title="设置">⚙</div>
+  <div id="clear" class="fab" title="清页">✦</div>
+  <div id="status"></div>
+
+  <div id="panel">
+    <div class="card">
+      <h2>Riddle</h2>
+      <p class="sub">一本会回话的手写日记 · 设置你的 Oracle(AI 接口)</p>
+
+      <label>API 地址（OpenAI 兼容）</label>
+      <input id="f-url" placeholder="https://api.openai.com/v1/chat/completions" />
+      <div class="hint">OpenAI、OpenRouter、Groq、本地服务皆可。OpenRouter 用 <code>https://openrouter.ai/api/v1/chat/completions</code>（可借它调 Claude / Gemini 等视觉模型）。</div>
+
+      <label>API Key</label>
+      <input id="f-key" type="password" placeholder="sk-..." autocomplete="off" />
+      <div class="hint">只存在你 iPad 本机的浏览器里（localStorage），不会上传到别处。</div>
+
+      <div class="row">
+        <div>
+          <label>视觉模型</label>
+          <input id="f-model" placeholder="gpt-4o" />
+        </div>
+        <div>
+          <label>停笔触发（秒）</label>
+          <input id="f-idle" type="number" step="0.1" min="0.5" placeholder="2.8" />
+        </div>
+      </div>
+      <div class="hint">模型必须支持读图。例如 <code>gpt-4o</code>、<code>anthropic/claude-sonnet-5</code>(经 OpenRouter)、<code>google/gemini-2.5-flash</code> 等。</div>
+
+      <label>手写字体</label>
+      <select id="f-font">
+        <option value="elegant">纤细连笔 / 毛笔楷书（最接近原版）</option>
+        <option value="calligraphy">古典书法 / 狂草（最神秘）</option>
+        <option value="vintage">复古花体 / 龙藏行楷</option>
+        <option value="diary">日记体 / 手写体</option>
+        <option value="quill">羽毛笔斜体 / 毛笔楷书</option>
+      </select>
+      <div class="hint">中英文各自选一款:英文用左边的花体,中文自动用右边的毛笔手写体。</div>
+
+      <label>日记的性格（system 提示）</label>
+      <input id="f-sys" placeholder="安静、温柔、简短地回应……" />
+
+      <div class="togrow">
+        <input type="checkbox" id="f-penonly" />
+        <label for="f-penonly" style="margin:0">仅接受 Apple Pencil（忽略手指，防误触）</label>
+      </div>
+
+      <div class="btns">
+        <button class="act" id="save">保存</button>
+        <button class="act ghost" id="close">取消</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+(function () {
+  // ---------- 配置 ----------
+  const DEFAULTS = {
+    url: "/api/chat",
+    key: "hosted",
+    model: "hosted",
+    idle: 2.8,
+    penonly: false,
+    font: "elegant",
+    sys: "Hosted diary prompt is configured on the server."
+  };
+  // 花体字库:family = CSS 字体族, k = 相对字号系数(有些花体 x 高度小,需放大)
+  // L = 拉丁花体, C = 中文毛笔手写体(均来自 Google Fonts,按字下载)
+  // 含中文时把 C 放最前面当主字体,canvas 才会用它渲染中文(否则会跳系统黑体)
+  const FONTS = {
+    elegant:     { L: '"Sacramento"',          C: '"Ma Shan Zheng"',    kL: 1.18, kC: 1.0 },
+    calligraphy: { L: '"Tangerine"',           C: '"Liu Jian Mao Cao"', kL: 1.7,  kC: 1.06 },
+    vintage:     { L: '"Great Vibes"',         C: '"Long Cang"',        kL: 1.28, kC: 1.02 },
+    diary:       { L: '"Dancing Script"',      C: '"Zhi Mang Xing"',    kL: 1.0,  kC: 1.02 },
+    quill:       { L: '"Cormorant Garamond"',  C: '"Ma Shan Zheng"',    kL: 1.15, kC: 1.0, italic: true }
+  };
+  function fontOf() { return FONTS[cfg.font] || FONTS.elegant; }
+  const LS = "riddle.cfg.v1";
+  function loadCfg() {
+    try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(LS) || "{}")); }
+    catch (e) { return Object.assign({}, DEFAULTS); }
+  }
+  function saveCfg(c) { localStorage.setItem(LS, JSON.stringify(c)); }
+  let cfg = loadCfg();
+
+  // ---------- 画布 ----------
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  const live = document.getElementById("live");
+  const lctx = live.getContext("2d");
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = window.innerWidth; H = window.innerHeight;
+    for (const cv of [canvas, live]) {
+      cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+      cv.getContext("2d").setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+    baseDirty = true;
+  }
+  // 颜色只取一次并缓存(之前每笔每帧都查 CSS,非常卡)
+  const CSSV = getComputedStyle(document.documentElement);
+  const INK = (CSSV.getPropertyValue("--ink") || "#23252b").trim();
+  const AI_INK = (CSSV.getPropertyValue("--ai-ink") || "#2c2820").trim();
+  let baseDirty = true;            // 底层需要重绘的标记
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- 状态 ----------
+  const STATE = { WRITING: 0, PROCESSING: 1, RESPONDING: 2 };
+  let state = STATE.WRITING;
+  let strokes = [];      // 用户笔迹 {pts:[{x,y,p}], committed, fadeStart}
+  let active = null;
+  let aiBlocks = [];
+  let lastInputAt = 0;
+  let sawPen = false;
+  let responseRevealAfter = 0;
+
+  const IDLE_MS = () => cfg.idle * 1000;
+  const USER_FADE_MS = 1250;
+  const AI_TYPE_CPS = 18;
+  const AI_HOLD_MS = 7000;
+  const AI_FADE_MS = 5200;
+
+  // ---------- 输入 ----------
+  function pointFrom(e) {
+    const r = canvas.getBoundingClientRect();
+    let p = e.pressure;
+    if (p === 0 || p == null) p = (e.pointerType === "pen") ? 0.35 : 0.5;
+    return { x: e.clientX - r.left, y: e.clientY - r.top, p };
+  }
+  function acceptable(e) {
+    if (e.pointerType === "pen") { sawPen = true; return true; }
+    if (cfg.penonly) return false;
+    // 一旦用过 pencil，就默认只认 pencil，避免手掌误触
+    if (sawPen && e.pointerType === "touch") return false;
+    return true;
+  }
+
+  // 重画当前这一笔;末端加一段"预测延伸",让墨迹抢在笔尖前面以抵消延迟。
+  // 每次都整条重画(先清屏),所以预测尾巴每帧刷新、不留残影。
+  // 只追加绘制新增线段，避免在 iPad 高 DPR 画布上反复清屏重画整笔。
+  let liveRAF = 0;
+  function drawLiveIncremental() {
+    liveRAF = 0;
+    if (!active) return;
+    const pts = active.pts;
+    let i = active.drawn || 0;
+    lctx.strokeStyle = INK; lctx.fillStyle = INK;
+    lctx.lineCap = "round"; lctx.lineJoin = "round";
+    if (i === 0 && pts.length) {
+      const p = pts[0];
+      lctx.beginPath(); lctx.arc(p.x, p.y, (2.4 + p.p * 3) / 2, 0, 7); lctx.fill();
+      i = 1;
+    }
+    if (i < pts.length) {
+      const start = Math.max(0, i - 1);
+      let pressure = 0;
+      lctx.beginPath();
+      lctx.moveTo(pts[start].x, pts[start].y);
+      for (let j = i; j < pts.length; j++) {
+        lctx.lineTo(pts[j].x, pts[j].y);
+        pressure += pts[j].p;
+      }
+      lctx.lineWidth = 2.4 + (pressure / Math.max(1, pts.length - i)) * 3;
+      lctx.stroke();
+      i = pts.length;
+    }
+    active.drawn = i;
+  }
+  function scheduleLiveDraw() {
+    if (!liveRAF) liveRAF = requestAnimationFrame(drawLiveIncremental);
+  }
+
+  live.addEventListener("pointerdown", (e) => {
+    if (!acceptable(e)) return;
+    e.preventDefault();
+    try { live.setPointerCapture(e.pointerId); } catch (er) {}
+    active = { pointerId: e.pointerId, pts: [pointFrom(e)], drawn: 0, committed: false, fadeStart: null, born: performance.now() };
+    scheduleLiveDraw();
+    lastInputAt = performance.now();
+
+  }, { passive: false });
+
+  live.addEventListener("pointermove", (e) => {
+    if (!active || e.pointerId !== active.pointerId) return;
+    if (!acceptable(e)) return;
+    e.preventDefault();
+    const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
+    for (const ev of evs) active.pts.push(pointFrom(ev));
+    scheduleLiveDraw();
+    lastInputAt = performance.now();
+
+  }, { passive: false });
+
+  function endStroke(e) {
+    if (!active || (e && e.pointerId !== active.pointerId)) return;
+    if (e && e.pointerType !== "pen" && !acceptable(e)) return;
+    if (active.pts.length) {
+      if (liveRAF) { cancelAnimationFrame(liveRAF); liveRAF = 0; }
+      drawLiveIncremental();
+      strokes.push(active);
+      drawStroke(active, performance.now()); // 立刻把这一笔合成到底层
+      lctx.clearRect(0, 0, W, H);            // 立刻清空实时层,无跨帧竞态
+      baseDirty = true;
+    }
+    active = null;
+    lastInputAt = performance.now();
+  }
+  live.addEventListener("pointerup", endStroke, { passive: false });
+  live.addEventListener("pointercancel", endStroke, { passive: false });
+
+  // ---------- 绘制 ----------
+  function strokeAlpha(s, now) {
+    if (!s.committed) return 1;
+    const t = (now - s.fadeStart) / USER_FADE_MS;
+    return t >= 1 ? 0 : 1 - t;
+  }
+  function drawStroke(s, now) {
+    const a = strokeAlpha(s, now);
+    if (a <= 0) return;
+    const pts = s.pts;
+    ctx.globalAlpha = a;
+    if (pts.length < 2) {
+      const p0 = pts[0];
+      ctx.fillStyle = INK;
+      ctx.beginPath(); ctx.arc(p0.x, p0.y, 1.7 + p0.p * 2.6, 0, 7); ctx.fill();
+      return;
+    }
+    let sum = 0; for (const p of pts) sum += p.p;
+    ctx.strokeStyle = INK; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineWidth = 2.4 + (sum / pts.length) * 3.0;   // 整笔一次描边 + 贝塞尔圆滑
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    ctx.stroke();
+  }
+
+  function drawAI(block, now) {
+    if (!block.lastTick) block.lastTick = now;
+    const dt = Math.min(100, now - block.lastTick);
+    block.lastTick = now;
+    block.shownFloat = Math.min(block.text.length, (block.shownFloat || 0) + dt / 1000 * AI_TYPE_CPS);
+    const shown = Math.floor(block.shownFloat);
+    block.shown = shown;
+    let alpha = 1;
+    if (block.fadeStart) {
+      const t = (now - block.fadeStart) / AI_FADE_MS;
+      alpha = t >= 1 ? 0 : 1 - t;
+    }
+    if (alpha <= 0) { block.done = true; return; }
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = AI_INK;
+    ctx.font = block.font;
+    ctx.textBaseline = "alphabetic";
+    ctx.shadowColor = "rgba(70,52,24,0.35)";  // 墨迹微微晕开,似浸入纸中
+    ctx.shadowBlur = 2.5;
+    function paintPrefix(count, opacity) {
+      ctx.globalAlpha = alpha * opacity;
+      for (let i = 0; i < block.lines.length && count > 0; i++) {
+        const ln = block.lines[i];
+        const seg = ln.slice(0, count);
+        ctx.fillText(seg, block.x, block.y + i * block.lh);
+        count -= ln.length;
+      }
+    }
+    paintPrefix(shown, 1);
+    const fraction = block.shownFloat - shown;
+    if (shown < block.text.length && fraction > 0) {
+      paintPrefix(shown + 1, Math.min(1, 0.18 + fraction * 0.82));
+    }
+    ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
+  }
+
+  function loop() {
+    const now = performance.now();
+
+    // 停笔检测 → 提交并请求
+    if (state === STATE.WRITING && !active) {
+      const hasFresh = strokes.some(s => !s.committed);
+      if (hasFresh && now - lastInputAt > IDLE_MS()) commit();
+    }
+
+    // 只有在有动画(墨迹淡出 / AI 书写)或内容变动时才重绘底层 —— 书写时底层几乎不动,省下算力给实时层
+    const fading = strokes.some(s => s.committed);
+    const animating = fading || aiBlocks.length > 0;
+    if (baseDirty || animating) {
+      ctx.clearRect(0, 0, W, H);
+      for (const s of strokes) drawStroke(s, now);
+      strokes = strokes.filter(s => strokeAlpha(s, now) > 0);
+
+      for (const b of aiBlocks) drawAI(b, now);
+      for (const b of aiBlocks) {
+        if (!b.fadeStart && b.shown >= b.text.length && b.text.length > 0) {
+          if (!b.holdFrom) b.holdFrom = now;
+          else if (now - b.holdFrom > AI_HOLD_MS) b.fadeStart = now;
+        }
+      }
+      aiBlocks = aiBlocks.filter(b => !b.done);
+      if (state === STATE.RESPONDING && aiBlocks.length === 0) state = STATE.WRITING;
+
+      ctx.globalAlpha = 1;
+      baseDirty = animating; // 动画期间保持脏;静止后画完这一帧即停
+    }
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ---------- 提交：截图 → 调模型 ----------
+  function boundingBox() {
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9, any = false;
+    for (const s of strokes) for (const p of s.pts) {
+      any = true;
+      if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
+    }
+    return any ? { minX, minY, maxX, maxY } : null;
+  }
+
+  function capturePNG() {
+    // 干净的高对比截图:白底 + 黑墨,只含用户笔迹
+    const maxW = 1100;
+    const scale = Math.min(1, maxW / W);
+    const off = document.createElement("canvas");
+    off.width = Math.round(W * scale); off.height = Math.round(H * scale);
+    const o = off.getContext("2d");
+    o.fillStyle = "#ffffff"; o.fillRect(0, 0, off.width, off.height);
+    o.scale(scale, scale);
+    o.strokeStyle = "#111"; o.fillStyle = "#111";
+    o.lineCap = "round"; o.lineJoin = "round";
+    for (const s of strokes) {
+      const pts = s.pts;
+      if (pts.length < 2) { if (pts[0]) { o.beginPath(); o.arc(pts[0].x, pts[0].y, 2, 0, 7); o.fill(); } continue; }
+      for (let i = 1; i < pts.length; i++) {
+        o.lineWidth = 1.6 + ((pts[i-1].p + pts[i].p) / 2) * 3.2;
+        o.beginPath(); o.moveTo(pts[i-1].x, pts[i-1].y); o.lineTo(pts[i].x, pts[i].y); o.stroke();
+      }
+    }
+    return off.toDataURL("image/png");
+  }
+
+  function layoutResponse(text) {
+    const f = fontOf();
+    const hasCJK = /[㐀-鿿぀-ヿ]/.test(text);
+    const size = Math.round(36 * (hasCJK ? f.kC : f.kL)), lh = Math.round(size * 1.24);
+    const marginX = 40, marginTop = 80, marginBottom = 90;
+    const fam = hasCJK
+      ? `${f.C}, ${f.L}, "Snell Roundhand", cursive`   // 中文毛笔体优先
+      : `${f.L}, "Snell Roundhand", cursive`;
+    const font = `${f.italic ? "italic " : ""}500 ${size}px ${fam}`;
+    ctx.font = font;
+    // 中文毛笔体是按需下载的,先触发加载;下好后强制重绘一帧,避免定格在黑体
+    if (hasCJK && document.fonts && document.fonts.load) {
+      try { document.fonts.load(`${size}px ${f.C}`, text).then(() => { baseDirty = true; }); } catch (e) {}
+    }
+    const box = boundingBox();
+    const startX = box ? Math.min(Math.max(marginX, box.minX), W * 0.4) : marginX;
+    const maxWidth = W - startX - marginX;
+
+    // 断行(中文按字符断,英文按词断)
+    const words = text.split(/(\s+)/);
+    const lines = []; let cur = "";
+    const pushWord = (w) => {
+      // 单个"词"过宽(如长中文串)时按字符硬断
+      if (ctx.measureText(w).width <= maxWidth) return [w];
+      const out = []; let seg = "";
+      for (const ch of w) {
+        if (ctx.measureText(seg + ch).width > maxWidth && seg) { out.push(seg); seg = ch; }
+        else seg += ch;
+      }
+      if (seg) out.push(seg);
+      return out;
+    };
+    for (const w of words) {
+      for (const piece of pushWord(w)) {
+        const test = cur + piece;
+        if (ctx.measureText(test).width > maxWidth && cur.trim()) { lines.push(cur.trimEnd()); cur = piece.replace(/^\s+/, ""); }
+        else cur = test;
+      }
+    }
+    if (cur.trim()) lines.push(cur.trimEnd());
+
+    // 垂直定位:优先放在手写下方,但整块必须留在可视区内 → 放不下就上移
+    const totalH = (lines.length - 1) * lh;
+    const desiredY = box ? box.maxY + lh + 14 : Math.round(H * 0.3);
+    const maxStartY = H - marginBottom - totalH;
+    const minStartY = marginTop;
+    let startY = Math.min(desiredY, Math.max(minStartY, maxStartY));
+    if (startY < minStartY) startY = minStartY;
+    return { font, lh, x: startX, y: startY, lines };
+  }
+
+  function addBlockWhenFontReady(block) {
+    if (block.inList || block.fontLoading) return;
+    const revealNow = () => {
+      if (block.inList) return;
+      block.fontLoading = false;
+      block.inList = true;
+      block.born = performance.now();
+      block.lastTick = block.born;
+      block.shown = 0;
+      block.shownFloat = 0;
+      aiBlocks.push(block);
+      baseDirty = true;
+    };
+    const reveal = () => {
+      const wait = Math.max(0, responseRevealAfter - performance.now());
+      if (wait > 0) setTimeout(revealNow, wait);
+      else revealNow();
+    };
+    const hasCJK = /[\u3000-\u9fff\uf900-\ufaff]/.test(block.text);
+    if (hasCJK && document.fonts && document.fonts.load) {
+      block.fontLoading = true;
+      document.fonts.load(block.font, block.text || "中文").then(reveal, reveal);
+    } else {
+      reveal();
+    }
+  }
+  async function commit() {
+    if (!cfg.key) { flash("先点右上角 ⚙ 填入 API Key"); openPanel(); return; }
+    state = STATE.PROCESSING;
+    responseRevealAfter = performance.now() + USER_FADE_MS + 180;
+    strokes.forEach(s => { if (!s.committed) { s.committed = true; s.fadeStart = performance.now(); } });
+    const img = capturePNG();
+    flash("日记正在读你的字……");
+
+    const block = { text: "", lines: [""], font: "", lh: 46, x: 34, y: H*0.3, born: performance.now(), shown: 0, fadeStart: null, done: false };
+    let started = false;
+
+    try {
+      await streamChat(img, (delta, full) => {
+        if (!started) { started = true; state = STATE.RESPONDING; hideFlash(); }
+        if (full.length > block.text.length) block.holdFrom = null;
+        block.text = full;
+        const lay = layoutResponse(full);
+        block.font = lay.font; block.lh = lay.lh; block.x = lay.x; block.y = lay.y; block.lines = lay.lines;
+        addBlockWhenFontReady(block);
+      });
+      if (!block.inList && !block.fontLoading) { // 空回应兜底
+        block.text = "……"; const lay = layoutResponse(block.text);
+        Object.assign(block, lay); aiBlocks.push(block); block.inList = true; block.born = performance.now();
+      }
+    } catch (err) {
+      hideFlash();
+      const msg = "（Oracle 沉默了：" + (err && err.message ? err.message : "请检查设置") + "）";
+      const lay = layoutResponse(msg);
+      Object.assign(block, { text: msg }, lay); aiBlocks.push(block); block.inList = true; block.born = performance.now();
+      state = STATE.RESPONDING;
+    }
+  }
+
+  async function streamChat(dataUrl, onDelta) {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: dataUrl })
+    });
+    if (!res.ok) {
+      let message = "请求失败";
+      try { message = (await res.json()).error || message; } catch (_) {}
+      if (res.status === 401) document.getElementById("gate").hidden = false;
+      throw new Error(message);
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "", full = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") return;
+        try {
+          const parsed = JSON.parse(data);
+          const piece = parsed.choices?.[0]?.delta?.content || "";
+          if (piece) { full += piece; onDelta(piece, full); }
+        } catch (_) {}
+      }
+    }
+  }
+
+  // ---------- UI ----------
+  let flashTimer = null;
+  const statusEl = document.getElementById("status");
+  function flash(msg) { statusEl.textContent = msg; statusEl.classList.add("show"); }
+  function hideFlash() { statusEl.classList.remove("show"); }
+
+  const panel = document.getElementById("panel");
+  const F = {
+    url: document.getElementById("f-url"), key: document.getElementById("f-key"),
+    model: document.getElementById("f-model"), idle: document.getElementById("f-idle"),
+    sys: document.getElementById("f-sys"), penonly: document.getElementById("f-penonly"),
+    font: document.getElementById("f-font")
+  };
+  function openPanel() {
+    F.url.value = cfg.url; F.key.value = cfg.key; F.model.value = cfg.model;
+    F.idle.value = cfg.idle; F.sys.value = cfg.sys; F.penonly.checked = !!cfg.penonly;
+    F.font.value = cfg.font || "elegant";
+    panel.classList.add("show");
+  }
+  function closePanel() { panel.classList.remove("show"); }
+  document.getElementById("gear").addEventListener("click", openPanel);
+  document.getElementById("close").addEventListener("click", closePanel);
+  document.getElementById("save").addEventListener("click", () => {
+    cfg = {
+      url: F.url.value.trim() || DEFAULTS.url,
+      key: F.key.value.trim(),
+      model: F.model.value.trim() || DEFAULTS.model,
+      idle: Math.max(0.5, parseFloat(F.idle.value) || DEFAULTS.idle),
+      sys: F.sys.value.trim() || DEFAULTS.sys,
+      penonly: F.penonly.checked,
+      font: F.font.value || "elegant"
+    };
+    saveCfg(cfg); closePanel(); flash("已保存，开始书写吧"); setTimeout(hideFlash, 1600);
+  });
+  document.getElementById("clear").addEventListener("click", () => {
+    strokes = []; aiBlocks = []; active = null; state = STATE.WRITING;
+    baseDirty = true; lctx.clearRect(0, 0, W, H);
+  });
+
+  document.getElementById("gear").style.display = "none";
+  const gate = document.getElementById("gate");
+  const gateForm = document.getElementById("gate-form");
+  const gateError = document.getElementById("gate-error");
+  const gateSubmit = document.getElementById("gate-submit");
+  async function checkSession() {
+    try {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (res.ok) { gate.hidden = true; flash("写点什么，停笔片刻，日记会回应你"); setTimeout(hideFlash, 3200); }
+    } catch (_) {}
+  }
+  gateForm.addEventListener("submit", async (event) => {
+    event.preventDefault(); gateError.textContent = ""; gateSubmit.disabled = true; gateSubmit.textContent = "正在开启…";
+    try {
+      const res = await fetch("/api/auth/login", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ code:document.getElementById("access-code").value }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "体验码验证失败");
+      gate.hidden = true; flash("日记已经苏醒，写点什么吧"); setTimeout(hideFlash, 2600);
+    } catch (error) { gateError.textContent = error.message; }
+    finally { gateSubmit.disabled = false; gateSubmit.textContent = "开启日记"; }
+  });
+  checkSession();
+})();
+</script>
+</body>
+</html>
