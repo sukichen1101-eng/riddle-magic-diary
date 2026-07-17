@@ -221,10 +221,9 @@
 
   // ---------- 输入 ----------
   function pointFrom(e) {
-    const r = canvas.getBoundingClientRect();
     let p = e.pressure;
     if (p === 0 || p == null) p = (e.pointerType === "pen") ? 0.35 : 0.5;
-    return { x: e.clientX - r.left, y: e.clientY - r.top, p };
+    return { x: e.clientX, y: e.clientY, p };
   }
   function acceptable(e) {
     if (e.pointerType === "pen") { sawPen = true; return true; }

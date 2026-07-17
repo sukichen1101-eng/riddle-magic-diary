@@ -29,3 +29,10 @@ test("Chinese response font is complete and served locally instead of Google fon
   assert.match(html, /C: '"Riddle Ma Shan Zheng"'/);
   assert.doesNotMatch(html, /fonts\.googleapis\.com[^\n]*Ma\+Shan\+Zheng/);
 });
+
+test("Apple Pencil sampling does not force layout reads for every coalesced point", () => {
+  const start = html.indexOf("function pointFrom(e)");
+  const end = html.indexOf("function acceptable(e)", start);
+  assert.ok(start > 0 && end > start);
+  assert.doesNotMatch(html.slice(start, end), /getBoundingClientRect/);
+});
