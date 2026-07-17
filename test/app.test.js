@@ -84,3 +84,17 @@ test("self-host mode works without an access code while keeping the API key serv
   assert.match(await chat.text(), /Hello/);
   assert.equal(JSON.stringify(f.upstreamCalls[0]).includes("server-only-key"), false);
 });
+
+test("the previous diary reply is sent as anti-repetition context", async (t) => {
+  const f = await fixture({ authRequired: false }); t.after(() => f.server.close());
+  const previousResponse = "The moon already answered this once.";
+  const chat = await fetch(`${f.base}/api/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ image: "data:image/png;base64,AAAA", previousResponse })
+  });
+  assert.equal(chat.status, 200);
+  const messages = JSON.stringify(f.upstreamCalls[0].messages);
+  assert.match(messages, /The moon already answered this once/);
+  assert.match(messages, /do not repeat/i);
+});

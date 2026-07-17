@@ -212,6 +212,7 @@
   let lastInputAt = 0;
   let sawPen = false;
   let responseRevealAfter = 0;
+  let lastAiResponse = "";
 
   const IDLE_MS = () => cfg.idle * 1000;
   const USER_FADE_MS = 1250;
@@ -528,7 +529,7 @@
     let started = false;
 
     try {
-      await streamChat(img, (delta, full) => {
+      await streamChat(img, lastAiResponse, (delta, full) => {
         if (!started) { started = true; state = STATE.RESPONDING; hideFlash(); }
         if (full.length > block.text.length) block.holdFrom = null;
         block.text = full;
@@ -536,6 +537,7 @@
         block.font = lay.font; block.lh = lay.lh; block.x = lay.x; block.y = lay.y; block.lines = lay.lines;
         addBlockWhenFontReady(block);
       });
+      if (block.text.trim()) lastAiResponse = block.text.trim();
       if (!block.inList && !block.fontLoading) { // 空回应兜底
         block.text = "……"; const lay = layoutResponse(block.text);
         Object.assign(block, lay); aiBlocks.push(block); block.inList = true; block.born = performance.now();
@@ -550,11 +552,11 @@
     }
   }
 
-  async function streamChat(dataUrl, onDelta) {
+  async function streamChat(dataUrl, previousResponse, onDelta) {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: dataUrl })
+      body: JSON.stringify({ image: dataUrl, previousResponse })
     });
     if (!res.ok) {
       let message = "请求失败";

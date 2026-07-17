@@ -36,3 +36,10 @@ test("Apple Pencil sampling does not force layout reads for every coalesced poin
   assert.ok(start > 0 && end > start);
   assert.doesNotMatch(html.slice(start, end), /getBoundingClientRect/);
 });
+
+test("each request carries the previous diary reply to prevent exact repetition", () => {
+  assert.match(html, /let lastAiResponse = "";/);
+  assert.match(html, /streamChat\(img, lastAiResponse,/);
+  assert.match(html, /JSON\.stringify\(\{ image: dataUrl, previousResponse \}\)/);
+  assert.match(html, /lastAiResponse = block\.text\.trim\(\)/);
+});
