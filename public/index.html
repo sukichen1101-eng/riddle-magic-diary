@@ -385,7 +385,7 @@
     // 只有在有动画(墨迹淡出 / AI 书写)或内容变动时才重绘底层 —— 书写时底层几乎不动,省下算力给实时层
     const fading = strokes.some(s => s.committed);
     const animating = fading || aiBlocks.length > 0;
-    if (baseDirty || animating) {
+    if (!active && (baseDirty || animating)) {
       ctx.clearRect(0, 0, W, H);
       for (const s of strokes) drawStroke(s, now);
       strokes = strokes.filter(s => strokeAlpha(s, now) > 0);

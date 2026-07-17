@@ -43,3 +43,7 @@ test("each request carries the previous diary reply to prevent exact repetition"
   assert.match(html, /JSON\.stringify\(\{ image: dataUrl, previousResponse \}\)/);
   assert.match(html, /lastAiResponse = block\.text\.trim\(\)/);
 });
+
+test("background response animation yields the canvas while the Pencil is active", () => {
+  assert.match(html, /if \(!active && \(baseDirty \|\| animating\)\)/);
+});
