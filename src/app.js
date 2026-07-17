@@ -66,6 +66,7 @@ export function createApp(config, store, fetchImpl = fetch) {
         if (typeof body.image !== "string" || !body.image.startsWith("data:image/png;base64,")) return sendJson(res, 400, { error: "缺少手写图片" });
         if (body.image.length > 7_500_000) return sendJson(res, 413, { error: "手写图片过大" });
         const previousResponse = typeof body.previousResponse === "string" ? body.previousResponse.trim().slice(0, 500) : "";
+        const responseRules = "\nAnswer explicit questions directly and correctly before adding at most one brief in-character phrase. Never evade a factual question. Vary vocabulary and sentence openings; do not overuse imagery about ink, whispers, pages, shadows, or secrets.";
         const repetitionGuard = previousResponse
           ? `\nThe previous diary reply was ${JSON.stringify(previousResponse)}. Answer the new handwriting specifically and do not repeat that wording.`
           : "";
@@ -80,7 +81,7 @@ export function createApp(config, store, fetchImpl = fetch) {
             thinking: { type: "disabled" },
             max_tokens: 300,
             messages: [
-              { role: "system", content: config.systemPrompt + "\nDetect the handwriting language and reply only in that same language." + repetitionGuard },
+              { role: "system", content: config.systemPrompt + "\nDetect the handwriting language and reply only in that same language." + responseRules + repetitionGuard },
               { role: "user", content: [
                 { type: "text", text: "Read the handwriting and respond briefly. English handwriting requires English only; Chinese handwriting requires Chinese only." },
                 { type: "image_url", image_url: { url: body.image } }
