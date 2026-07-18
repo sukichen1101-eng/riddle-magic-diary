@@ -235,6 +235,11 @@
     if (distanceSq < MIN_POINT_DISTANCE * MIN_POINT_DISTANCE) return;
     stroke.pts.push(point);
   }
+  function appendFinalPoint(stroke, e) {
+    const point = pointFrom(e);
+    const last = stroke.pts[stroke.pts.length - 1];
+    if (Math.hypot(point.x - last.x, point.y - last.y) > 0.15) stroke.pts.push(point);
+  }
   function acceptable(e) {
     if (e.pointerType === "pen") { sawPen = true; return true; }
     if (cfg.penonly) return false;
@@ -315,6 +320,7 @@
   function endStroke(e) {
     if (!active || (e && e.pointerId !== active.pointerId)) return;
     if (e && e.pointerType !== "pen" && !acceptable(e)) return;
+    if (e && e.type === "pointerup") appendFinalPoint(active, e);
     if (active.pts.length) {
       if (liveRAF) { cancelAnimationFrame(liveRAF); liveRAF = 0; }
       drawLiveIncremental();

@@ -86,3 +86,10 @@ test("background animation stays frozen between every stroke of a Chinese charac
   assert.match(html, /const animating = !writingSession && \(fading \|\| aiBlocks\.length > 0\)/);
   assert.match(html, /if \(!writingSession && \(baseDirty \|\| animating\)\)/);
 });
+
+test("pointerup preserves the final endpoint of short Chinese hooks", () => {
+  assert.match(html, /function appendFinalPoint\(stroke, e\)/);
+  const start = html.indexOf("function endStroke(e)");
+  const end = html.indexOf('live.addEventListener("pointerup"', start);
+  assert.match(html.slice(start, end), /if \(e && e\.type === "pointerup"\) appendFinalPoint\(active, e\)/);
+});
