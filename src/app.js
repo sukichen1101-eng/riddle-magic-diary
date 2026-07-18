@@ -25,6 +25,7 @@ async function readJson(req) {
 export function createApp(config, store, fetchImpl = fetch) {
   const secure = config.publicOrigin.startsWith("https://");
   const publicDir = path.resolve(config.publicDir);
+  const signaturePadBundle = path.resolve("node_modules/signature_pad/dist/signature_pad.umd.min.js");
   const authRequired = config.authRequired !== false;
 
   function getAuth(req) {
@@ -136,6 +137,12 @@ export function createApp(config, store, fetchImpl = fetch) {
       }
 
       if (req.method !== "GET" && req.method !== "HEAD") return sendJson(res, 405, { error: "Method not allowed" });
+      if (url.pathname === "/vendor/signature-pad.js") {
+        if (!fs.existsSync(signaturePadBundle)) return sendJson(res, 404, { error: "Not found" });
+        res.writeHead(200, { "Content-Type": MIME[".js"], "Cache-Control": "public, max-age=31536000, immutable" });
+        if (req.method === "HEAD") return res.end();
+        return fs.createReadStream(signaturePadBundle).pipe(res);
+      }
       const relative = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1));
       const file = path.resolve(publicDir, relative);
       if (!file.startsWith(publicDir + path.sep) && file !== path.join(publicDir, "index.html")) return sendJson(res, 403, { error: "Forbidden" });

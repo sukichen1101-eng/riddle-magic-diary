@@ -30,13 +30,6 @@ test("Chinese response font is complete and served locally instead of Google fon
   assert.doesNotMatch(html, /fonts\.googleapis\.com[^\n]*Ma\+Shan\+Zheng/);
 });
 
-test("Apple Pencil sampling does not force layout reads for every coalesced point", () => {
-  const start = html.indexOf("function pointFrom(e)");
-  const end = html.indexOf("function acceptable(e)", start);
-  assert.ok(start > 0 && end > start);
-  assert.doesNotMatch(html.slice(start, end), /getBoundingClientRect/);
-});
-
 test("each request carries the previous diary reply to prevent exact repetition", () => {
   assert.match(html, /let lastAiResponse = "";/);
   assert.match(html, /streamChat\(img, lastAiResponse,/);
@@ -61,24 +54,19 @@ test("recognition starts sooner and uploads only the handwriting region", () => 
 });
 
 test("lifting the Pencil does not repaint every previous Chinese stroke", () => {
-  const start = html.indexOf("function endStroke(e)");
-  const end = html.indexOf('live.addEventListener("pointerup"', start);
+  const start = html.indexOf('signaturePad.addEventListener("endStroke"');
+  const end = html.indexOf("// ----------", start);
   const endStroke = html.slice(start, end);
-  assert.match(endStroke, /drawStroke\(active, performance\.now\(\)\)/);
+  assert.match(endStroke, /ctx\.drawImage\(live, 0, 0, W, H\)/);
+  assert.match(endStroke, /signaturePad\.clear\(\)/);
+  assert.doesNotMatch(endStroke, /drawStroke\(/);
   assert.doesNotMatch(endStroke, /baseDirty = true/);
 });
 
-test("long strokes filter dense samples and pen lifts clear only their local bounds", () => {
-  assert.match(html, /const MIN_POINT_DISTANCE = 1\.5/);
-  assert.match(html, /function appendPoint\(stroke, e\)/);
-  assert.match(html, /distanceSq < MIN_POINT_DISTANCE \* MIN_POINT_DISTANCE/);
-  assert.match(html, /const coalesced = e\.getCoalescedEvents \? e\.getCoalescedEvents\(\) : \[\]/);
-  assert.match(html, /function clearLiveStroke\(stroke\)/);
-  const start = html.indexOf("function endStroke(e)");
-  const end = html.indexOf('live.addEventListener("pointerup"', start);
-  const endStroke = html.slice(start, end);
-  assert.match(endStroke, /clearLiveStroke\(active\)/);
-  assert.doesNotMatch(endStroke, /lctx\.clearRect\(0, 0, W, H\)/);
+test("long and short strokes use unthrottled subpixel Bezier sampling", () => {
+  assert.match(html, /throttle:\s*0/);
+  assert.match(html, /minDistance:\s*0\.5/);
+  assert.match(html, /velocityFilterWeight:\s*0\.7/);
 });
 
 test("background animation stays frozen between every stroke of a Chinese character", () => {
@@ -87,9 +75,16 @@ test("background animation stays frozen between every stroke of a Chinese charac
   assert.match(html, /if \(!writingSession && \(baseDirty \|\| animating\)\)/);
 });
 
-test("pointerup preserves the final endpoint of short Chinese hooks", () => {
-  assert.match(html, /function appendFinalPoint\(stroke, e\)/);
-  const start = html.indexOf("function endStroke(e)");
-  const end = html.indexOf('live.addEventListener("pointerup"', start);
-  assert.match(html.slice(start, end), /if \(e && e\.type === "pointerup"\) appendFinalPoint\(active, e\)/);
+test("completed Bezier points remain available for recognition and fading", () => {
+  assert.match(html, /const groups = signaturePad\.toData\(\)/);
+  assert.match(html, /active\.pts = \(group \? group\.points : \[\]\)\.map/);
+  assert.match(html, /strokes\.push\(active\)/);
+});
+
+test("the live Pencil layer uses the Signature Pad Bezier engine without frame-delayed drawing", () => {
+  assert.match(html, /new SignaturePad\(live,/);
+  assert.match(html, /throttle:\s*0/);
+  assert.match(html, /minDistance:\s*0\.5/);
+  assert.match(html, /velocityFilterWeight:\s*0\.7/);
+  assert.doesNotMatch(html, /live\.addEventListener\("pointermove"/);
 });

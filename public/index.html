@@ -148,6 +148,7 @@
   <div id="clear" class="fab" title="清页">✦</div>
   <div id="status"></div>
 
+<script src="/vendor/signature-pad.js"></script>
 <script>
 "use strict";
 (function () {
@@ -184,7 +185,7 @@
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
   const live = document.getElementById("live");
-  const lctx = live.getContext("2d");
+  let signaturePad = null;
   let W = 0, H = 0, DPR = 1;
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2.5);
@@ -193,6 +194,7 @@
       cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
       cv.getContext("2d").setTransform(DPR, 0, 0, DPR, 0, 0);
     }
+    if (signaturePad) signaturePad.clear();
     baseDirty = true;
   }
   // 颜色只取一次并缓存(之前每笔每帧都查 CSS,非常卡)
@@ -221,25 +223,6 @@
   const AI_FADE_MS = 5200;
 
   // ---------- 输入 ----------
-  function pointFrom(e) {
-    let p = e.pressure;
-    if (p === 0 || p == null) p = (e.pointerType === "pen") ? 0.35 : 0.5;
-    return { x: e.clientX, y: e.clientY, p };
-  }
-  const MIN_POINT_DISTANCE = 1.5;
-  function appendPoint(stroke, e) {
-    const point = pointFrom(e);
-    const last = stroke.pts[stroke.pts.length - 1];
-    const dx = point.x - last.x, dy = point.y - last.y;
-    const distanceSq = dx * dx + dy * dy;
-    if (distanceSq < MIN_POINT_DISTANCE * MIN_POINT_DISTANCE) return;
-    stroke.pts.push(point);
-  }
-  function appendFinalPoint(stroke, e) {
-    const point = pointFrom(e);
-    const last = stroke.pts[stroke.pts.length - 1];
-    if (Math.hypot(point.x - last.x, point.y - last.y) > 0.15) stroke.pts.push(point);
-  }
   function acceptable(e) {
     if (e.pointerType === "pen") { sawPen = true; return true; }
     if (cfg.penonly) return false;
@@ -248,91 +231,42 @@
     return true;
   }
 
-  // 重画当前这一笔;末端加一段"预测延伸",让墨迹抢在笔尖前面以抵消延迟。
-  // 每次都整条重画(先清屏),所以预测尾巴每帧刷新、不留残影。
-  // 只追加绘制新增线段，避免在 iPad 高 DPR 画布上反复清屏重画整笔。
-  let liveRAF = 0;
-  function drawLiveIncremental() {
-    liveRAF = 0;
+  // 实时层由 Signature Pad 直接消费 Pointer 事件，以速度过滤的贝塞尔曲线绘制。
+  // 关闭节流，避免旧方案等待下一帧才补画而产生明显追笔。
+  signaturePad = new SignaturePad(live, {
+    penColor: INK,
+    minWidth: 1.7,
+    maxWidth: 4.6,
+    throttle: 0,
+    minDistance: 0.5,
+    velocityFilterWeight: 0.7
+  });
+  signaturePad.addEventListener("beginStroke", (event) => {
+    const source = event.detail.event;
+    if (!acceptable(source)) return event.preventDefault();
+    active = { committed: false, fadeStart: null, born: performance.now(), pts: [] };
+    lastInputAt = performance.now();
+  });
+  signaturePad.addEventListener("afterUpdateStroke", () => {
+    lastInputAt = performance.now();
+  });
+  signaturePad.addEventListener("endStroke", () => {
     if (!active) return;
-    const pts = active.pts;
-    let i = active.drawn || 0;
-    lctx.strokeStyle = INK; lctx.fillStyle = INK;
-    lctx.lineCap = "round"; lctx.lineJoin = "round";
-    if (i === 0 && pts.length) {
-      const p = pts[0];
-      lctx.beginPath(); lctx.arc(p.x, p.y, (2.4 + p.p * 3) / 2, 0, 7); lctx.fill();
-      i = 1;
-    }
-    if (i < pts.length) {
-      const start = Math.max(0, i - 1);
-      let pressure = 0;
-      lctx.beginPath();
-      lctx.moveTo(pts[start].x, pts[start].y);
-      for (let j = i; j < pts.length; j++) {
-        lctx.lineTo(pts[j].x, pts[j].y);
-        pressure += pts[j].p;
-      }
-      lctx.lineWidth = 2.4 + (pressure / Math.max(1, pts.length - i)) * 3;
-      lctx.stroke();
-      i = pts.length;
-    }
-    active.drawn = i;
-  }
-  function scheduleLiveDraw() {
-    if (!liveRAF) liveRAF = requestAnimationFrame(drawLiveIncremental);
-  }
-
-  live.addEventListener("pointerdown", (e) => {
-    if (!acceptable(e)) return;
-    e.preventDefault();
-    try { live.setPointerCapture(e.pointerId); } catch (er) {}
-    active = { pointerId: e.pointerId, pts: [pointFrom(e)], drawn: 0, committed: false, fadeStart: null, born: performance.now() };
-    scheduleLiveDraw();
-    lastInputAt = performance.now();
-
-  }, { passive: false });
-
-  live.addEventListener("pointermove", (e) => {
-    if (!active || e.pointerId !== active.pointerId) return;
-    if (!acceptable(e)) return;
-    e.preventDefault();
-    const coalesced = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
-    const evs = coalesced.length ? coalesced : [e];
-    for (const ev of evs) appendPoint(active, ev);
-    scheduleLiveDraw();
-    lastInputAt = performance.now();
-
-  }, { passive: false });
-
-  function clearLiveStroke(stroke) {
-    const pts = stroke.pts;
-    if (!pts.length) return;
-    let minX = pts[0].x, minY = pts[0].y, maxX = minX, maxY = minY;
-    for (let i = 1; i < pts.length; i++) {
-      minX = Math.min(minX, pts[i].x); minY = Math.min(minY, pts[i].y);
-      maxX = Math.max(maxX, pts[i].x); maxY = Math.max(maxY, pts[i].y);
-    }
-    const margin = 10;
-    lctx.clearRect(minX - margin, minY - margin, maxX - minX + margin * 2, maxY - minY + margin * 2);
-  }
-
-  function endStroke(e) {
-    if (!active || (e && e.pointerId !== active.pointerId)) return;
-    if (e && e.pointerType !== "pen" && !acceptable(e)) return;
-    if (e && e.type === "pointerup") appendFinalPoint(active, e);
+    const groups = signaturePad.toData();
+    const group = groups[groups.length - 1];
+    active.pts = (group ? group.points : []).map((point) => ({
+      x: point.x,
+      y: point.y,
+      p: point.pressure > 0 ? point.pressure : 0.35
+    }));
     if (active.pts.length) {
-      if (liveRAF) { cancelAnimationFrame(liveRAF); liveRAF = 0; }
-      drawLiveIncremental();
+      ctx.drawImage(live, 0, 0, W, H);
       strokes.push(active);
-      drawStroke(active, performance.now()); // 立刻把这一笔合成到底层
-      clearLiveStroke(active);               // 只清理这一笔的局部区域
     }
+    signaturePad.clear();
     active = null;
     lastInputAt = performance.now();
-  }
-  live.addEventListener("pointerup", endStroke, { passive: false });
-  live.addEventListener("pointercancel", endStroke, { passive: false });
+  });
 
   // ---------- 绘制 ----------
   function strokeAlpha(s, now) {
@@ -630,8 +564,8 @@
   function hideFlash() { statusEl.classList.remove("show"); }
 
   document.getElementById("clear").addEventListener("click", () => {
-    strokes = []; aiBlocks = []; active = null; state = STATE.WRITING;
-    baseDirty = true; lctx.clearRect(0, 0, W, H);
+    strokes = []; aiBlocks = []; active = null; state = STATE.WRITING; signaturePad.clear();
+    baseDirty = true;
   });
 
   const gate = document.getElementById("gate");

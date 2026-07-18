@@ -9,5 +9,10 @@
     "test": "node --test",
     "codes": "node scripts/generate-codes.js"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "signature_pad": "^5.1.3"
+  }
 }
