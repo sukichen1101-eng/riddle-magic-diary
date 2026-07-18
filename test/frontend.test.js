@@ -88,3 +88,15 @@ test("the live Pencil layer uses the Signature Pad Bezier engine without frame-d
   assert.match(html, /velocityFilterWeight:\s*0\.7/);
   assert.doesNotMatch(html, /live\.addEventListener\("pointermove"/);
 });
+
+test("starting a new entry dismisses the previous response instead of deadlocking submission", () => {
+  assert.match(html, /function beginNewEntry\(\)/);
+  const start = html.indexOf("function beginNewEntry()");
+  const end = html.indexOf('signaturePad.addEventListener("beginStroke"', start);
+  const reset = html.slice(start, end);
+  assert.match(reset, /state !== STATE\.RESPONDING/);
+  assert.match(reset, /aiBlocks = \[\]/);
+  assert.match(reset, /state = STATE\.WRITING/);
+  const begin = html.slice(end, html.indexOf('signaturePad.addEventListener("afterUpdateStroke"', end));
+  assert.match(begin, /beginNewEntry\(\)/);
+});

@@ -233,6 +233,16 @@
 
   // 实时层由 Signature Pad 直接消费 Pointer 事件，以速度过滤的贝塞尔曲线绘制。
   // 关闭节流，避免旧方案等待下一帧才补画而产生明显追笔。
+  function beginNewEntry() {
+    if (state !== STATE.RESPONDING) return;
+    aiBlocks = [];
+    strokes = strokes.filter((stroke) => !stroke.committed);
+    ctx.clearRect(0, 0, W, H);
+    for (const stroke of strokes) drawStroke(stroke, performance.now());
+    ctx.globalAlpha = 1;
+    state = STATE.WRITING;
+    baseDirty = false;
+  }
   signaturePad = new SignaturePad(live, {
     penColor: INK,
     minWidth: 1.7,
@@ -244,6 +254,7 @@
   signaturePad.addEventListener("beginStroke", (event) => {
     const source = event.detail.event;
     if (!acceptable(source)) return event.preventDefault();
+    beginNewEntry();
     active = { committed: false, fadeStart: null, born: performance.now(), pts: [] };
     lastInputAt = performance.now();
   });
