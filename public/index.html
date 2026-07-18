@@ -299,7 +299,6 @@
       strokes.push(active);
       drawStroke(active, performance.now()); // 立刻把这一笔合成到底层
       lctx.clearRect(0, 0, W, H);            // 立刻清空实时层,无跨帧竞态
-      baseDirty = true;
     }
     active = null;
     lastInputAt = performance.now();

@@ -59,3 +59,11 @@ test("recognition starts sooner and uploads only the handwriting region", () => 
   assert.match(capture, /o\.translate\(-left, -top\)/);
   assert.doesNotMatch(capture, /maxW \/ W/);
 });
+
+test("lifting the Pencil does not repaint every previous Chinese stroke", () => {
+  const start = html.indexOf("function endStroke(e)");
+  const end = html.indexOf('live.addEventListener("pointerup"', start);
+  const endStroke = html.slice(start, end);
+  assert.match(endStroke, /drawStroke\(active, performance\.now\(\)\)/);
+  assert.doesNotMatch(endStroke, /baseDirty = true/);
+});
