@@ -47,3 +47,15 @@ test("each request carries the previous diary reply to prevent exact repetition"
 test("background response animation yields the canvas while the Pencil is active", () => {
   assert.match(html, /if \(!active && \(baseDirty \|\| animating\)\)/);
 });
+
+test("recognition starts sooner and uploads only the handwriting region", () => {
+  assert.match(html, /idle: 2\.0/);
+  assert.match(html, /const IDLE_MS = \(\) => DEFAULTS\.idle \* 1000/);
+  const start = html.indexOf("function capturePNG()");
+  const end = html.indexOf("function layoutResponse", start);
+  const capture = html.slice(start, end);
+  assert.match(capture, /const box = boundingBox\(\)/);
+  assert.match(capture, /const cropW = Math\.max\(1, right - left\)/);
+  assert.match(capture, /o\.translate\(-left, -top\)/);
+  assert.doesNotMatch(capture, /maxW \/ W/);
+});

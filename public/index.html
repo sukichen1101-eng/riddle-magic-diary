@@ -156,7 +156,7 @@
     url: "/api/chat",
     key: "hosted",
     model: "hosted",
-    idle: 2.8,
+    idle: 2.0,
     penonly: false,
     font: "elegant",
     sys: "Hosted diary prompt is configured on the server."
@@ -214,7 +214,7 @@
   let responseRevealAfter = 0;
   let lastAiResponse = "";
 
-  const IDLE_MS = () => cfg.idle * 1000;
+  const IDLE_MS = () => DEFAULTS.idle * 1000;
   const USER_FADE_MS = 1250;
   const AI_TYPE_CPS = 18;
   const AI_HOLD_MS = 7000;
@@ -421,13 +421,22 @@
 
   function capturePNG() {
     // 干净的高对比截图:白底 + 黑墨,只含用户笔迹
+    const box = boundingBox() || { minX: 0, minY: 0, maxX: W, maxY: H };
+    const padding = 36;
+    const left = Math.max(0, box.minX - padding);
+    const top = Math.max(0, box.minY - padding);
+    const right = Math.min(W, box.maxX + padding);
+    const bottom = Math.min(H, box.maxY + padding);
+    const cropW = Math.max(1, right - left);
+    const cropH = Math.max(1, bottom - top);
     const maxW = 1100;
-    const scale = Math.min(1, maxW / W);
+    const scale = Math.min(1, maxW / cropW);
     const off = document.createElement("canvas");
-    off.width = Math.round(W * scale); off.height = Math.round(H * scale);
+    off.width = Math.round(cropW * scale); off.height = Math.round(cropH * scale);
     const o = off.getContext("2d");
     o.fillStyle = "#ffffff"; o.fillRect(0, 0, off.width, off.height);
     o.scale(scale, scale);
+    o.translate(-left, -top);
     o.strokeStyle = "#111"; o.fillStyle = "#111";
     o.lineCap = "round"; o.lineJoin = "round";
     for (const s of strokes) {
