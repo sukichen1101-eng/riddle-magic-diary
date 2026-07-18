@@ -45,7 +45,7 @@ test("each request carries the previous diary reply to prevent exact repetition"
 });
 
 test("background response animation yields the canvas while the Pencil is active", () => {
-  assert.match(html, /if \(!active && \(baseDirty \|\| animating\)\)/);
+  assert.match(html, /if \(!writingSession && \(baseDirty \|\| animating\)\)/);
 });
 
 test("recognition starts sooner and uploads only the handwriting region", () => {
@@ -79,4 +79,10 @@ test("long strokes filter dense samples and pen lifts clear only their local bou
   const endStroke = html.slice(start, end);
   assert.match(endStroke, /clearLiveStroke\(active\)/);
   assert.doesNotMatch(endStroke, /lctx\.clearRect\(0, 0, W, H\)/);
+});
+
+test("background animation stays frozen between every stroke of a Chinese character", () => {
+  assert.match(html, /const writingSession = Boolean\(active\) \|\| strokes\.some\(s => !s\.committed\)/);
+  assert.match(html, /const animating = !writingSession && \(fading \|\| aiBlocks\.length > 0\)/);
+  assert.match(html, /if \(!writingSession && \(baseDirty \|\| animating\)\)/);
 });
