@@ -23,6 +23,7 @@ const config = {
   maxDevices: Number(env.MAX_DEVICES_PER_CODE || 2),
   codeDailyCap: Number(env.EMERGENCY_CODE_DAILY_CAP || 500),
   globalDailyCap: Number(env.EMERGENCY_GLOBAL_DAILY_CAP || 5000),
+  upstreamTimeoutMs: Number(env.UPSTREAM_TIMEOUT_MS || 7000),
   timeZone: env.APP_TIME_ZONE || "Asia/Shanghai",
   systemPrompt: env.SYSTEM_PROMPT || "You are Riddle, an ancient, gentle and mysterious handwritten diary. Reply in one or two short, poetic sentences; never use lists."
 };

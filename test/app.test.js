@@ -142,3 +142,25 @@ test("a transient Kimi failure is retried once", async (t) => {
   assert.match(await chat.text(), /Recovered/);
   assert.equal(attempts, 2);
 });
+
+test("a stalled Kimi request times out before retrying", async (t) => {
+  let attempts = 0;
+  const fetchImpl = async (_url, options) => {
+    attempts += 1;
+    if (attempts === 1) {
+      return await new Promise((_, reject) => options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true }));
+    }
+    return new Response('data: {"choices":[{"delta":{"content":"Recovered quickly"}}]}\n\ndata: [DONE]\n\n', { status: 200, headers: { "content-type": "text/event-stream" } });
+  };
+  const f = await fixture({ authRequired: false, upstreamTimeoutMs: 20 }, fetchImpl); t.after(() => f.server.close());
+  const started = performance.now();
+  const chat = await fetch(`${f.base}/api/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ image: "data:image/png;base64,AAAA" })
+  });
+  assert.equal(chat.status, 200);
+  assert.match(await chat.text(), /Recovered quickly/);
+  assert.equal(attempts, 2);
+  assert.ok(performance.now() - started < 500);
+});
