@@ -171,9 +171,10 @@ test("the Kimi timeout is cleared once streaming has started", async (t) => {
     upstreamSignal = options.signal;
     const body = new ReadableStream({
       start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Slow"}}]}\n\n'));
         setTimeout(() => {
           if (upstreamSignal.aborted) return controller.error(new Error("stream was aborted"));
-          controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Slow stream survived"}}]}\n\ndata: [DONE]\n\n'));
+          controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":" stream survived"}}]}\n\ndata: [DONE]\n\n'));
           controller.close();
         }, 50);
       }
@@ -187,6 +188,8 @@ test("the Kimi timeout is cleared once streaming has started", async (t) => {
     body: JSON.stringify({ image: "data:image/png;base64,AAAA" })
   });
   assert.equal(chat.status, 200);
-  assert.match(await chat.text(), /Slow stream survived/);
+  const streamed = await chat.text();
+  assert.match(streamed, /"content":"Slow"/);
+  assert.match(streamed, /"content":" stream survived"/);
   assert.equal(upstreamSignal.aborted, false);
 });

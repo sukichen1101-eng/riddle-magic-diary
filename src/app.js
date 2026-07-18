@@ -98,7 +98,7 @@ export function createApp(config, store, fetchImpl = fetch) {
             ]
           })
         };
-        let upstream;
+        let upstream, upstreamReader, firstChunk;
         for (let attempt = 1; attempt <= 2; attempt++) {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(new Error("Kimi response timeout")), config.upstreamTimeoutMs || 7000);
@@ -107,6 +107,11 @@ export function createApp(config, store, fetchImpl = fetch) {
               ...upstreamOptions,
               signal: controller.signal
             });
+            if (upstream.ok) {
+              upstreamReader = upstream.body.getReader();
+              firstChunk = await upstreamReader.read();
+              break;
+            }
           } catch (error) {
             console.warn("Kimi upstream network error", { attempt, message: error.message });
             if (attempt === 1) continue;
@@ -114,7 +119,6 @@ export function createApp(config, store, fetchImpl = fetch) {
           } finally {
             clearTimeout(timeout);
           }
-          if (upstream.ok) break;
           const detail = (await upstream.text()).slice(0, 300);
           const retriable = upstream.status === 429 || upstream.status >= 500;
           console.warn("Kimi upstream error", { attempt, status: upstream.status, detail });
@@ -122,7 +126,12 @@ export function createApp(config, store, fetchImpl = fetch) {
           return sendJson(res, 502, { error: "日记暂时没有回应，请稍后重试" });
         }
         res.writeHead(200, { "Content-Type": upstream.headers.get("content-type") || "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" });
-        for await (const chunk of upstream.body) res.write(chunk);
+        if (!firstChunk.done) res.write(firstChunk.value);
+        while (true) {
+          const chunk = await upstreamReader.read();
+          if (chunk.done) break;
+          res.write(chunk.value);
+        }
         return res.end();
       }
 
