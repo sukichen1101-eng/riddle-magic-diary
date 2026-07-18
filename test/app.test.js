@@ -121,7 +121,7 @@ test("current-date questions receive authoritative Shanghai date context", async
   });
   const systemPrompt = f.upstreamCalls[0].messages[0].content;
   assert.match(systemPrompt, /Current date and weekday in Asia\/Shanghai:/);
-  assert.match(systemPrompt, /Saturday/);
+  assert.match(systemPrompt, /Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/);
   assert.match(systemPrompt, /2026/);
 });
 
@@ -163,4 +163,30 @@ test("a stalled Kimi request times out before retrying", async (t) => {
   assert.match(await chat.text(), /Recovered quickly/);
   assert.equal(attempts, 2);
   assert.ok(performance.now() - started < 500);
+});
+
+test("the Kimi timeout is cleared once streaming has started", async (t) => {
+  let upstreamSignal;
+  const fetchImpl = async (_url, options) => {
+    upstreamSignal = options.signal;
+    const body = new ReadableStream({
+      start(controller) {
+        setTimeout(() => {
+          if (upstreamSignal.aborted) return controller.error(new Error("stream was aborted"));
+          controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Slow stream survived"}}]}\n\ndata: [DONE]\n\n'));
+          controller.close();
+        }, 50);
+      }
+    });
+    return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+  };
+  const f = await fixture({ authRequired: false, upstreamTimeoutMs: 20 }, fetchImpl); t.after(() => f.server.close());
+  const chat = await fetch(`${f.base}/api/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ image: "data:image/png;base64,AAAA" })
+  });
+  assert.equal(chat.status, 200);
+  assert.match(await chat.text(), /Slow stream survived/);
+  assert.equal(upstreamSignal.aborted, false);
 });

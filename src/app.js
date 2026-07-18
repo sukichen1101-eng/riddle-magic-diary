@@ -100,15 +100,19 @@ export function createApp(config, store, fetchImpl = fetch) {
         };
         let upstream;
         for (let attempt = 1; attempt <= 2; attempt++) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(new Error("Kimi response timeout")), config.upstreamTimeoutMs || 7000);
           try {
             upstream = await fetchImpl(config.kimiApiUrl, {
               ...upstreamOptions,
-              signal: AbortSignal.timeout(config.upstreamTimeoutMs || 7000)
+              signal: controller.signal
             });
           } catch (error) {
             console.warn("Kimi upstream network error", { attempt, message: error.message });
             if (attempt === 1) continue;
             throw error;
+          } finally {
+            clearTimeout(timeout);
           }
           if (upstream.ok) break;
           const detail = (await upstream.text()).slice(0, 300);
