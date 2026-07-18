@@ -81,7 +81,7 @@ export function createApp(config, store, fetchImpl = fetch) {
           : "";
         const consumed = store.consume(auth.codeHash, Date.now(), config.codeDailyCap, config.globalDailyCap);
         if (!consumed.ok) return sendJson(res, 503, { error: "今日服务繁忙，请稍后再试" });
-        const upstream = await fetchImpl(config.kimiApiUrl, {
+        const upstreamOptions = {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${config.kimiApiKey}` },
           body: JSON.stringify({
@@ -97,10 +97,21 @@ export function createApp(config, store, fetchImpl = fetch) {
               ] }
             ]
           })
-        });
-        if (!upstream.ok) {
+        };
+        let upstream;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            upstream = await fetchImpl(config.kimiApiUrl, upstreamOptions);
+          } catch (error) {
+            console.warn("Kimi upstream network error", { attempt, message: error.message });
+            if (attempt === 1) continue;
+            throw error;
+          }
+          if (upstream.ok) break;
           const detail = (await upstream.text()).slice(0, 300);
-          console.error("Kimi upstream error", upstream.status, detail);
+          const retriable = upstream.status === 429 || upstream.status >= 500;
+          console.warn("Kimi upstream error", { attempt, status: upstream.status, detail });
+          if (attempt === 1 && retriable) continue;
           return sendJson(res, 502, { error: "日记暂时没有回应，请稍后重试" });
         }
         res.writeHead(200, { "Content-Type": upstream.headers.get("content-type") || "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" });

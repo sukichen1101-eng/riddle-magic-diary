@@ -14,7 +14,7 @@ function parseSetCookies(headers) {
   return headers.getSetCookie().map((value) => value.split(";", 1)[0]).join("; ");
 }
 
-async function fixture(overrides = {}) {
+async function fixture(overrides = {}, customFetch = null) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "riddle-test-"));
   fs.writeFileSync(path.join(dir, "index.html"), "ok");
   fs.writeFileSync(path.join(dir, "font.woff2"), "font");
@@ -27,7 +27,7 @@ async function fixture(overrides = {}) {
     return new Response('data: {"choices":[{"delta":{"content":"Hello"}}]}\n\ndata: [DONE]\n\n', { status: 200, headers: { "content-type": "text/event-stream" } });
   };
   const config = { publicDir: dir, publicOrigin: "http://localhost", sessionSecret: secret, kimiApiKey: "server-only-key", kimiApiUrl: "https://example.invalid/chat", kimiModel: "vision-model", sessionDays: 30, maxDevices: 2, codeDailyCap: 500, globalDailyCap: 5000, systemPrompt: "prompt", ...overrides };
-  const server = http.createServer(createApp(config, store, fetchImpl));
+  const server = http.createServer(createApp(config, store, customFetch || fetchImpl));
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   return { base: `http://127.0.0.1:${server.address().port}`, server, store, upstreamCalls };
 }
@@ -123,4 +123,22 @@ test("current-date questions receive authoritative Shanghai date context", async
   assert.match(systemPrompt, /Current date and weekday in Asia\/Shanghai:/);
   assert.match(systemPrompt, /Saturday/);
   assert.match(systemPrompt, /2026/);
+});
+
+test("a transient Kimi failure is retried once", async (t) => {
+  let attempts = 0;
+  const fetchImpl = async () => {
+    attempts += 1;
+    if (attempts === 1) return new Response("temporary", { status: 502 });
+    return new Response('data: {"choices":[{"delta":{"content":"Recovered"}}]}\n\ndata: [DONE]\n\n', { status: 200, headers: { "content-type": "text/event-stream" } });
+  };
+  const f = await fixture({ authRequired: false }, fetchImpl); t.after(() => f.server.close());
+  const chat = await fetch(`${f.base}/api/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ image: "data:image/png;base64,AAAA" })
+  });
+  assert.equal(chat.status, 200);
+  assert.match(await chat.text(), /Recovered/);
+  assert.equal(attempts, 2);
 });
