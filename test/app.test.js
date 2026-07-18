@@ -111,3 +111,16 @@ test("explicit questions are answered directly before diary styling", async (t) 
   assert.match(systemPrompt, /vary vocabulary and sentence openings/i);
   assert.match(systemPrompt, /never evade/i);
 });
+
+test("current-date questions receive authoritative Shanghai date context", async (t) => {
+  const f = await fixture({ authRequired: false, timeZone: "Asia/Shanghai" }); t.after(() => f.server.close());
+  await fetch(`${f.base}/api/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ image: "data:image/png;base64,AAAA" })
+  });
+  const systemPrompt = f.upstreamCalls[0].messages[0].content;
+  assert.match(systemPrompt, /Current date and weekday in Asia\/Shanghai:/);
+  assert.match(systemPrompt, /Saturday/);
+  assert.match(systemPrompt, /2026/);
+});
