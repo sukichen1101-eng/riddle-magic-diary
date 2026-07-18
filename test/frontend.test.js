@@ -67,3 +67,16 @@ test("lifting the Pencil does not repaint every previous Chinese stroke", () => 
   assert.match(endStroke, /drawStroke\(active, performance\.now\(\)\)/);
   assert.doesNotMatch(endStroke, /baseDirty = true/);
 });
+
+test("long strokes filter dense samples and pen lifts clear only their local bounds", () => {
+  assert.match(html, /const MIN_POINT_DISTANCE = 1\.5/);
+  assert.match(html, /function appendPoint\(stroke, e\)/);
+  assert.match(html, /distanceSq < MIN_POINT_DISTANCE \* MIN_POINT_DISTANCE/);
+  assert.match(html, /const coalesced = e\.getCoalescedEvents \? e\.getCoalescedEvents\(\) : \[\]/);
+  assert.match(html, /function clearLiveStroke\(stroke\)/);
+  const start = html.indexOf("function endStroke(e)");
+  const end = html.indexOf('live.addEventListener("pointerup"', start);
+  const endStroke = html.slice(start, end);
+  assert.match(endStroke, /clearLiveStroke\(active\)/);
+  assert.doesNotMatch(endStroke, /lctx\.clearRect\(0, 0, W, H\)/);
+});

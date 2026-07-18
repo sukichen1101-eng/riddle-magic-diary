@@ -226,6 +226,15 @@
     if (p === 0 || p == null) p = (e.pointerType === "pen") ? 0.35 : 0.5;
     return { x: e.clientX, y: e.clientY, p };
   }
+  const MIN_POINT_DISTANCE = 1.5;
+  function appendPoint(stroke, e) {
+    const point = pointFrom(e);
+    const last = stroke.pts[stroke.pts.length - 1];
+    const dx = point.x - last.x, dy = point.y - last.y;
+    const distanceSq = dx * dx + dy * dy;
+    if (distanceSq < MIN_POINT_DISTANCE * MIN_POINT_DISTANCE) return;
+    stroke.pts.push(point);
+  }
   function acceptable(e) {
     if (e.pointerType === "pen") { sawPen = true; return true; }
     if (cfg.penonly) return false;
@@ -283,12 +292,25 @@
     if (!active || e.pointerId !== active.pointerId) return;
     if (!acceptable(e)) return;
     e.preventDefault();
-    const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
-    for (const ev of evs) active.pts.push(pointFrom(ev));
+    const coalesced = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    const evs = coalesced.length ? coalesced : [e];
+    for (const ev of evs) appendPoint(active, ev);
     scheduleLiveDraw();
     lastInputAt = performance.now();
 
   }, { passive: false });
+
+  function clearLiveStroke(stroke) {
+    const pts = stroke.pts;
+    if (!pts.length) return;
+    let minX = pts[0].x, minY = pts[0].y, maxX = minX, maxY = minY;
+    for (let i = 1; i < pts.length; i++) {
+      minX = Math.min(minX, pts[i].x); minY = Math.min(minY, pts[i].y);
+      maxX = Math.max(maxX, pts[i].x); maxY = Math.max(maxY, pts[i].y);
+    }
+    const margin = 10;
+    lctx.clearRect(minX - margin, minY - margin, maxX - minX + margin * 2, maxY - minY + margin * 2);
+  }
 
   function endStroke(e) {
     if (!active || (e && e.pointerId !== active.pointerId)) return;
@@ -298,7 +320,7 @@
       drawLiveIncremental();
       strokes.push(active);
       drawStroke(active, performance.now()); // 立刻把这一笔合成到底层
-      lctx.clearRect(0, 0, W, H);            // 立刻清空实时层,无跨帧竞态
+      clearLiveStroke(active);               // 只清理这一笔的局部区域
     }
     active = null;
     lastInputAt = performance.now();
